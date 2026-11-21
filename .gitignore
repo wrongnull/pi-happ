@@ -1,0 +1,9 @@
+node_modules/
+.env
+.env.*
+!.env.example
+coverage/
+*.log
+subscriptions.json
+config.json
+.pi/
