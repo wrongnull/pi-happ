@@ -26,12 +26,14 @@ OAuth login/refresh uses an AsyncLocalStorage-scoped global fetch wrapper: only 
 
 A clean Linux VPS only needs Node.js 22.19+ and pi. Happ, curl, unzip, root access, and system services are not required.
 
-From the repository directory:
+Install the extension from GitHub and start pi:
 
 ```sh
-npm ci --legacy-peer-deps
-pi -e ./src/extension.ts
+pi install git:github.com/wrongnull/pi-happ
+pi
 ```
+
+If pi is already running, use `/reload` after installation.
 
 Add a subscription and select a location in `/happ`. On the first connection, the extension downloads official Xray **26.11.9** (Linux x64/arm64), verifies the archive against the SHA-256 pinned in the source code, and installs only the binary into `~/.local/share/pi-happ/runtimes/`. Subsequent connections use the local cache after verifying the binary's hash. The initial download requires access to GitHub before connecting to the VPN.
 
@@ -44,10 +46,10 @@ Runtime updates are tied to extension releases: the version and SHA-256 values i
 Use `/happ` → “Добавить подписку” (“Add subscription”). Enter the secret URL in the dialog, not in a message to the model. To use a custom runtime:
 
 ```sh
-PI_HAPP_XRAY=/path/to/xray pi -e ./src/extension.ts
+PI_HAPP_XRAY=/path/to/xray pi
 ```
 
-To install the package persistently: `pi install /absolute/path/to/pi-happ`.
+Cloning the repository and manually installing npm dependencies are not required for normal use.
 
 ## Cancellation and diagnostics
 
