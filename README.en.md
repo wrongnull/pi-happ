@@ -16,7 +16,7 @@ Implemented:
 - Xray shutdown on normal session exit, `/reload`, and session replacement;
 - private local subscription storage.
 
-OpenAI, Anthropic, and Codex retain their built-in catalogs and authentication, with a protected transport. Requests go directly until you enable the VPN. Selecting a location enables protected VPN mode, which uses HTTP/SSE, including for Codex; WebSocket is forcibly disabled. Explicitly stopping via `/happ` → “Остановить” (“Stop”), or cancelling connection setup with Esc, restores direct access. Connection failures, unexpected Xray/watchdog exits, and connectivity loss never trigger a direct fallback: requests fail until you reconnect or explicitly disable the VPN. Requests are also blocked during connection setup until the tunnel is ready. Stopping or changing the connection aborts requests and destroys the connection pool. A new session, including after `/reload`, starts without a connected VPN and allows direct access.
+OpenAI, Anthropic, and Codex retain their built-in catalogs and authentication, with a protected transport. Requests go directly until you enable the VPN. Selecting a location enables protected VPN mode, which uses HTTP/SSE, including for Codex; WebSocket is forcibly disabled. Explicitly stopping via `/happ` → “Stop”, or cancelling connection setup with Esc, restores direct access. Connection failures, unexpected Xray/watchdog exits, and connectivity loss never trigger a direct fallback: requests fail until you reconnect or explicitly disable the VPN. Requests are also blocked during connection setup until the tunnel is ready. Stopping or changing the connection aborts requests and destroys the connection pool. A new session, including after `/reload`, starts without a connected VPN and allows direct access.
 
 OAuth login/refresh uses an AsyncLocalStorage-scoped global fetch wrapper: only asynchronous work inside these providers' OAuth flows is routed through the proxy; other fetch calls are unchanged. Environment variables and system network settings are not modified. The external browser is not covered; localhost callbacks stay local. This is not a network sandbox: other providers, user tools, and arbitrary networking libraries are not protected.
 
@@ -41,7 +41,7 @@ Runtime updates are tied to extension releases: the version and SHA-256 values i
 
 `/happ-ip-check` checks your public IP through the active tunnel using `icanhazip.com`, without opening the menu. It shows the IP, location, HTTPS request duration in milliseconds (including connection/TLS setup and receiving the response; not an ICMP ping), and check time. Without a connected VPN, it returns an error rather than making a direct request.
 
-Use `/happ` → “Добавить подписку” (“Add subscription”). Enter the secret URL in the dialog, not in a message to the model. To use a custom runtime:
+Use `/happ` → “Add subscription”. Enter the secret URL in the dialog, not in a message to the model. To use a custom runtime:
 
 ```sh
 PI_HAPP_XRAY=/path/to/xray pi

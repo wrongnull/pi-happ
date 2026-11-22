@@ -1,3 +1,4 @@
+import { t } from './i18n.mjs';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { ProxyAgent, fetch as proxyFetch } from 'undici';
 
@@ -28,7 +29,7 @@ export class ProtectedTransport {
   }
   runAuth(fn) { return scope.run(this, fn); }
   invalidate() {
-    this.generation.abort(new Error('VPN connection changed or stopped'));
+    this.generation.abort(new Error(t('VPN connection changed or stopped')));
     this.generation = new AbortController();
     if (this.agent) void this.agent.destroy().catch(() => {});
     this.agent = undefined;
@@ -58,13 +59,13 @@ export class ProtectedTransport {
       signal: options.signal ? AbortSignal.any([options.signal, this.generation.signal]) : this.generation.signal };
   }
   assertReady() {
-    if (this.connecting || !this.tunnel.running) throw new Error('VPN required: connect a location using /happ');
+    if (this.connecting || !this.tunnel.running) throw new Error(t('VPN required: connect a location using /happ'));
   }
   async fetch(input, init = {}) {
     if (this.direct) return originalFetch(input, init);
     this.assertReady();
     const url = new URL(typeof input === 'string' || input instanceof URL ? input : input.url);
-    if (!['https:', 'http:'].includes(url.protocol)) throw new Error('Unsupported provider URL');
+    if (!['https:', 'http:'].includes(url.protocol)) throw new Error(t('Unsupported provider URL'));
     if (!this.agent || this.port !== this.tunnel.port) {
       if (this.agent) void this.agent.destroy().catch(() => {});
       this.port = this.tunnel.port;

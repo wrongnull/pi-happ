@@ -1,3 +1,4 @@
+import { t } from './i18n.mjs';
 import { createHash } from 'node:crypto';
 import { access, chmod, mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { constants } from 'node:fs';
@@ -63,7 +64,7 @@ export async function ensureRuntime({ root = runtimeRoot, platform = process.pla
     const existing = await cached(directory, release);
     signal?.throwIfAborted();
     if (existing) return existing;
-    onProgress(`Установка Xray ${XRAY_VERSION} (${arch}) с GitHub…`);
+    onProgress(t(`Installing Xray ${XRAY_VERSION} (${arch}) from GitHub…`, `Установка Xray ${XRAY_VERSION} (${arch}) с GitHub…`));
     const url = `https://github.com/XTLS/Xray-core/releases/download/v${XRAY_VERSION}/${release.asset}`;
     const archive = await download(url, undefined, signal);
     signal?.throwIfAborted();

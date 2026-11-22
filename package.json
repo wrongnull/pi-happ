@@ -21,7 +21,7 @@
     "@earendil-works/pi-coding-agent": "*"
   },
   "scripts": {
-    "test": "node --test",
+    "test": "LC_ALL=C node --test",
     "check": "tsc --noEmit"
   },
   "dependencies": {
