@@ -20,7 +20,9 @@ export function installAuthFetch() {
 export class ProtectedTransport {
   constructor(tunnel) {
     this.tunnel = tunnel;
-    this.direct = false;
+    // No VPN has been requested in this session: ordinary direct access is allowed.
+    this.direct = true;
+    this.connecting = false;
     this.generation = new AbortController();
     this.fetch = this.fetch.bind(this);
   }
@@ -33,6 +35,22 @@ export class ProtectedTransport {
     this.port = undefined;
   }
   setDirect(value) { this.invalidate(); this.direct = value; }
+  async connect(profile, signal) {
+    this.setDirect(false);
+    this.connecting = true;
+    try {
+      await this.tunnel.start(profile, undefined, undefined, signal);
+    } catch (error) {
+      // Explicit UI cancellation is user intent; connection failures are not.
+      if (signal?.aborted && signal.reason?.name === 'AbortError') this.setDirect(true);
+      throw error;
+    } finally { this.connecting = false; }
+  }
+  async stopByUser() {
+    this.invalidate();
+    await this.tunnel.stop();
+    this.setDirect(true);
+  }
   options(options = {}) {
     if (this.direct) return options;
     this.assertReady();
@@ -40,7 +58,7 @@ export class ProtectedTransport {
       signal: options.signal ? AbortSignal.any([options.signal, this.generation.signal]) : this.generation.signal };
   }
   assertReady() {
-    if (!this.tunnel.running) throw new Error('VPN required: connect a location using /happ');
+    if (this.connecting || !this.tunnel.running) throw new Error('VPN required: connect a location using /happ');
   }
   async fetch(input, init = {}) {
     if (this.direct) return originalFetch(input, init);

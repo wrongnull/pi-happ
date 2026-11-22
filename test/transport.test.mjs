@@ -33,6 +33,7 @@ test('provider transport and scoped OAuth use CONNECT; unrelated fetch is unaffe
   const port = await listen(proxy);
   const tunnel = { running: true, port };
   const transport = new ProtectedTransport(tunnel);
+  transport.setDirect(false);
   const uninstall = installAuthFetch();
   const url = `http://127.0.0.1:${originPort}/`;
   try {
@@ -65,6 +66,63 @@ test('provider transport and scoped OAuth use CONNECT; unrelated fetch is unaffe
   }
 });
 
+test('direct access works initially and after intentional stop, but not after a crash', async () => {
+  const server = http.createServer((_req, res) => res.end('direct'));
+  const port = await listen(server);
+  const tunnel = { running: false, start: async () => { tunnel.running = true; }, stop: async () => { tunnel.running = false; } };
+  const transport = new ProtectedTransport(tunnel);
+  const uninstall = installAuthFetch();
+  const url = `http://127.0.0.1:${port}`;
+  try {
+    assert.equal(transport.direct, true);
+    assert.equal(await (await transport.fetch(url)).text(), 'direct');
+    assert.equal(await transport.runAuth(async () => (await fetch(url)).text()), 'direct');
+    await transport.connect({});
+    assert.equal(transport.direct, false);
+    tunnel.running = false; // unexpected Xray exit
+    transport.invalidate();
+    assert.throws(() => transport.options(), /VPN required/);
+    await assert.rejects(transport.fetch(url), /VPN required/);
+    await assert.rejects(transport.runAuth(() => fetch(url)), /VPN required/);
+    await transport.stopByUser();
+    assert.equal(transport.direct, true);
+    assert.equal(await (await transport.fetch(url)).text(), 'direct');
+  } finally {
+    uninstall(); transport.invalidate(); server.closeAllConnections();
+    await new Promise(resolve => server.close(resolve));
+  }
+});
+
+test('failed connection remains protected; explicit cancellation restores direct access', async () => {
+  const tunnel = { running: false, start: async () => { throw new Error('connection failed'); }, stop: async () => {} };
+  const transport = new ProtectedTransport(tunnel);
+  await assert.rejects(transport.connect({}), /connection failed/);
+  assert.equal(transport.direct, false);
+  assert.throws(() => transport.options(), /VPN required/);
+  const controller = new AbortController();
+  controller.abort(new DOMException('user cancelled', 'AbortError'));
+  await assert.rejects(transport.connect({}, controller.signal));
+  assert.equal(transport.direct, true);
+  // Session shutdown is not an explicit request to continue directly.
+  const shutdown = new AbortController();
+  shutdown.abort(new Error('session ended'));
+  await assert.rejects(transport.connect({}, shutdown.signal));
+  assert.equal(transport.direct, false);
+});
+
+test('connecting blocks requests even if the child process has already started', async () => {
+  let finish;
+  const tunnel = { running: true, start: () => new Promise(resolve => { finish = resolve; }) };
+  const transport = new ProtectedTransport(tunnel);
+  const connecting = transport.connect({});
+  assert.throws(() => transport.options(), /VPN required/);
+  finish();
+  await connecting;
+  assert.equal(transport.direct, false);
+  assert.doesNotThrow(() => transport.options());
+  transport.invalidate();
+});
+
 test('provider wrapping preserves catalog and OAuth callbacks', async () => {
   const tunnel = { running: false };
   const transport = new ProtectedTransport(tunnel);
@@ -76,6 +134,8 @@ test('provider wrapping preserves catalog and OAuth callbacks', async () => {
   const wrapped = protectProvider(provider, transport);
   assert.deepEqual(wrapped.getModels(), ['model']);
   assert.equal(await wrapped.auth.oauth.login(), 'login');
+  assert.equal(wrapped.streamSimple({}, {}, { transport: 'auto' }).transport, 'auto');
+  transport.setDirect(false);
   assert.throws(() => wrapped.streamSimple({}, {}), /VPN required/);
   transport.setDirect(true);
   assert.equal(wrapped.streamSimple({}, {}, { transport: 'auto' }).transport, 'auto');

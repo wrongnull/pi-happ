@@ -116,8 +116,7 @@ export default function happ(pi: ExtensionAPI) {
             }
           } else if (action === 'Остановить') {
             ctx.abort();
-            transport.invalidate();
-            await tunnel.stop();
+            await transport.stopByUser();
           } else {
             const labels = state.subscriptions.map((s, i) => `${i + 1}. ${cleanLabel(s.name)} (${s.profiles.length})`);
             if (!labels.length) { ctx.ui.notify('Сначала добавьте подписку', 'info'); continue; }
@@ -141,9 +140,8 @@ export default function happ(pi: ExtensionAPI) {
               if (location) {
                 ctx.ui.notify('Запуск Xray и проверка IP…', 'info');
                 ctx.abort();
-                transport.setDirect(false);
                 await runOperation(ctx, 'Подключение VPN (Esc — отмена)…', signal =>
-                  tunnel.start(subscription.profiles[names.indexOf(location)], undefined, undefined, signal));
+                  transport.connect(subscription.profiles[names.indexOf(location)], signal));
                 const { ip, latencyMs } = await tunnel.checkIP();
                 ctx.ui.notify(`VPN готов: ${ip} · HTTPS-запрос: ${latencyMs} мс. OpenAI/Anthropic/Codex: VPN (SSE).`, 'info');
               }

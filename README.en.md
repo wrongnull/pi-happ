@@ -16,11 +16,9 @@ Implemented:
 - Xray shutdown on normal session exit, `/reload`, and session replacement;
 - private local subscription storage.
 
-OpenAI, Anthropic, and Codex retain their built-in catalogs and authentication, with a protected transport. Requests are blocked by default until a location is connected. VPN mode uses HTTP/SSE, including for Codex; WebSocket is forcibly disabled. Stopping or changing the connection aborts requests and destroys the connection pool. Direct mode requires explicit confirmation in `/happ` and does not persist between sessions.
+OpenAI, Anthropic, and Codex retain their built-in catalogs and authentication, with a protected transport. Requests go directly until you enable the VPN. Selecting a location enables protected VPN mode, which uses HTTP/SSE, including for Codex; WebSocket is forcibly disabled. Explicitly stopping via `/happ` → “Остановить” (“Stop”), or cancelling connection setup with Esc, restores direct access. Connection failures, unexpected Xray/watchdog exits, and connectivity loss never trigger a direct fallback: requests fail until you reconnect or explicitly disable the VPN. Requests are also blocked during connection setup until the tunnel is ready. Stopping or changing the connection aborts requests and destroys the connection pool. A new session, including after `/reload`, starts without a connected VPN and allows direct access.
 
 OAuth login/refresh uses an AsyncLocalStorage-scoped global fetch wrapper: only asynchronous work inside these providers' OAuth flows is routed through the proxy; other fetch calls are unchanged. Environment variables and system network settings are not modified. The external browser is not covered; localhost callbacks stay local. This is not a network sandbox: other providers, user tools, and arbitrary networking libraries are not protected.
-
-**End-to-end tests with real OpenAI/Anthropic accounts and OAuth have not been completed.** Do not treat this extension as fully verified leak protection.
 
 ## Getting started
 
@@ -63,7 +61,7 @@ First connect a location in `/happ`, then use `/login`:
 - OpenAI Codex → **Device code login (headless)**: open the link on your own computer and confirm the code;
 - Anthropic → **Copy code login (headless)**: open the link on your own computer and paste the resulting code into pi's login dialog.
 
-These methods do not require a browser on the VPS or an SSH callback tunnel. Token exchanges and refresh requests on the VPS go through the child-process Xray; your computer's browser does not automatically use that VPN. Never paste codes or tokens into the model chat. Verification with real accounts remains a manual step.
+These methods do not require a browser on the VPS or an SSH callback tunnel. Token exchanges and refresh requests on the VPS go through the child-process Xray; your computer's browser does not automatically use that VPN. Never paste codes or tokens into the model chat.
 
 ## Limitations and security
 
@@ -100,8 +98,6 @@ The extension's code is distributed under the [MIT License](LICENSE). Xray and t
 
 ## Next steps
 
-1. Verify real OpenAI/Anthropic/Codex accounts, SSE, and OAuth login/refresh; expand tests using real pi adapters.
-2. Support WebSocket without forcing SSE. The external browser requires a separate solution; loopback callbacks must remain local.
-3. Support additional subscription formats and more complex profiles with balancers/routing.
-4. Search and favorites. The watchdog, bulk subscription updates, and transport invalidation on runtime failure are already implemented.
-5. End-to-end checks with the real runtime and accounts: successful model responses, tool calls, headless OAuth login and refresh, `/reload`, and session replacement.
+1. Support WebSocket without forcing SSE. The external browser requires a separate solution; loopback callbacks must remain local.
+2. Support additional subscription formats and more complex profiles with balancers/routing.
+3. Search and favorites. The watchdog, bulk subscription updates, and transport invalidation on runtime failure are already implemented.

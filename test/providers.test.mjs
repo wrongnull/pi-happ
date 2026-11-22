@@ -65,6 +65,7 @@ for (const provider of builtinProviders().filter(p => ['openai', 'anthropic', 'o
     const port = await listen(proxy);
     const tunnel = { running: true, port };
     const transport = new ProtectedTransport(tunnel);
+    transport.setDirect(false);
     const wrapped = protectProvider(provider, transport);
     const model = { ...provider.getModels()[0], baseUrl: `http://127.0.0.1:${targetPort}` };
     const transcript = { messages: [{ role: 'user', content: [{ type: 'text', text: 'synthetic' }], timestamp: Date.now() }] };
