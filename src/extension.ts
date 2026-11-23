@@ -1,15 +1,27 @@
 import { BorderedLoader, type ExtensionAPI, type ExtensionContext } from '@earendil-works/pi-coding-agent';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { builtinProviders } from '@earendil-works/pi-ai/providers/all';
 import { ProtectedTransport, installAuthFetch, protectProvider } from './transport.mjs';
 import { Tunnel, cleanLabel, downloadSubscription, loadState, saveState } from './core.mjs';
 import { resolveRuntime } from './runtime.mjs';
 import { t, uiLocale } from './i18n.mjs';
+import { checkLocations } from './latency.mjs';
 
 export default function happ(pi: ExtensionAPI) {
   const tunnel = new Tunnel();
   const transport = new ProtectedTransport(tunnel);
   const uninstall = installAuthFetch();
+  const latencies = new Map<string, { status: string; latencyMs?: number; checkedAt: number }>();
+  const latencyKey = (profile: { outbounds: unknown[] }) => createHash('sha256').update(JSON.stringify(profile.outbounds)).digest('hex');
+  const latencyText = (profile: { outbounds: unknown[] }) => {
+    const result = latencies.get(latencyKey(profile));
+    if (!result) return 'TCP: —';
+    const age = Math.max(0, Math.floor((Date.now() - result.checkedAt) / 60000));
+    const value = result.status === 'ok' ? `${result.latencyMs} ${t('ms', 'мс')}`
+      : result.status === 'unsupported' ? 'n/a'
+      : result.status === 'timeout' ? 'timeout' : t('unreachable', 'недоступен');
+    return `TCP: ${value}${age ? ` · ${age} ${t('min ago', 'мин назад')}` : ''}`;
+  };
   let busy = false;
   let operation: AbortController | undefined;
   const notifyError = (ctx: ExtensionContext, error: unknown) => ctx.ui.notify(
@@ -147,15 +159,32 @@ export default function happ(pi: ExtensionAPI) {
                 await saveState(state);
               }
             } else {
-              const names = subscription.profiles.map((p, i) => `${i + 1}. ${cleanLabel(p.remarks || t('Unnamed', 'Без названия'))}`);
-              const location = await ctx.ui.select(t('Location', 'Локация'), names);
-              if (location) {
+              while (true) {
+                const checkAll = t('Check all locations (TCP)', 'Проверить все локации (TCP)');
+                const names = subscription.profiles.map((p, i) => `${i + 1}. ${cleanLabel(p.remarks || t('Unnamed', 'Без названия'))} · ${latencyText(p)}`);
+                const location = await ctx.ui.select(t('Location · TCP is not a tunnel test', 'Локация · TCP не проверяет туннель'), [checkAll, ...names]);
+                if (!location) break;
+                if (location === checkAll) {
+                  try {
+                    const results = await runOperation(ctx, t('Checking locations (TCP, Esc to cancel)…', 'Проверка локаций (TCP, Esc — отмена)…'), signal =>
+                      checkLocations(subscription.profiles, { signal }));
+                    subscription.profiles.forEach((profile, i) => latencies.set(latencyKey(profile), results[i]));
+                    while (latencies.size > 10000) latencies.delete(latencies.keys().next().value!);
+                  } catch (error) {
+                    notifyError(ctx, error);
+                    if (!(error instanceof Error && error.name === 'AbortError')) throw error;
+                  }
+                  continue;
+                }
+                const selectedIndex = names.indexOf(location);
+                if (selectedIndex < 0) continue;
                 ctx.ui.notify(t('Starting Xray and checking IP…', 'Запуск Xray и проверка IP…'), 'info');
                 ctx.abort();
                 await runOperation(ctx, t('Connecting VPN (Esc to cancel)…', 'Подключение VPN (Esc — отмена)…'), signal =>
-                  transport.connect(subscription.profiles[names.indexOf(location)], signal));
+                  transport.connect(subscription.profiles[selectedIndex], signal));
                 const { ip, latencyMs } = await tunnel.checkIP();
                 ctx.ui.notify(`${t('VPN ready', 'VPN готов')}: ${ipText(ip, latencyMs)}. OpenAI/Anthropic/Codex: VPN (SSE).`, 'info');
+                break;
               }
             }
           }
