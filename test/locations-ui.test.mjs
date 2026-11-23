@@ -5,7 +5,7 @@ import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-test('location menu displays probe results and retains them when reopened', async () => {
+test('main-menu latency action never connects and caches results for location selection', async () => {
   const home = await mkdtemp(join(tmpdir(), 'pi-happ-locations-ui-'));
   try {
     const config = join(home, '.config', 'pi-happ');
@@ -15,29 +15,36 @@ test('location menu displays probe results and retains them when reopened', asyn
     ] }));
     const source = `
       import extension from ${JSON.stringify(new URL('../src/extension.ts', import.meta.url).href)};
-      const commands = new Map(); const events = new Map(); const views = [];
+      const commands = new Map(); const events = new Map(); const views = []; const notices = [];
       extension({ registerProvider() {}, registerCommand(name, command) { commands.set(name, command); }, on(name, fn) { events.set(name, fn); } });
-      let mainVisits = 0;
-      const ctx = { hasUI: true, mode: 'rpc', ui: {
-        notify() {}, setStatus() {},
+      const steps = ['Select location', 'Check location latency (TCP)', 'Select location', 'Close', 'Select location', 'Close'];
+      const ctx = { hasUI: true, mode: 'rpc', abort() { throw new Error('Unexpected attempt to connect'); }, ui: {
+        notify(message) { notices.push(message); }, setStatus() {},
         async select(title, items) {
-          if (title.startsWith('Happ')) return ++mainVisits % 2 ? 'Select location' : 'Close';
+          if (title.startsWith('Happ')) {
+            if (!items.includes('Check location latency (TCP)')) throw new Error('Missing main-menu action');
+            return steps.shift();
+          }
           if (title === 'Subscriptions') return items[0];
-          if (title.startsWith('Location')) { views.push(items); return views.length === 1 ? items[0] : undefined; }
+          if (title.startsWith('TCP latency results')) { views.push(items); return items[0]; }
+          if (title.startsWith('Location')) {
+            if (items.some(item => item.includes('Check all locations'))) throw new Error('Probe action still in location picker');
+            views.push(items); return undefined;
+          }
           throw new Error('Unexpected dialog');
         }
       } };
       await commands.get('happ').handler('', ctx);
       await commands.get('happ').handler('', ctx);
       await events.get('session_shutdown')();
-      console.log(JSON.stringify(views));
+      console.log(JSON.stringify({ views, notices }));
     `;
-    const views = JSON.parse(execFileSync(process.execPath, ['--input-type=module', '-e', source], {
+    const { views, notices } = JSON.parse(execFileSync(process.execPath, ['--input-type=module', '-e', source], {
       encoding: 'utf8', env: { ...process.env, HOME: home, LC_ALL: 'C' }, timeout: 10000,
     }));
-    assert.equal(views.length, 3);
-    assert.match(views[0][1], /TCP: —/);
-    assert.match(views[1][1], /TCP: n\/a/);
-    assert.match(views[2][1], /TCP: n\/a/);
+    assert.deepEqual(notices, []);
+    assert.equal(views.length, 4);
+    assert.match(views[0][0], /TCP: —/);
+    for (const view of views.slice(1)) assert.match(view[0], /TCP: n\/a/);
   } finally { await rm(home, { recursive: true, force: true }); }
 });
