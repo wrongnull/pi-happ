@@ -5,7 +5,7 @@ import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-test('main-menu latency action never connects and caches results for location selection', async () => {
+test('cancelling latency results does not connect and preserves cached measurements', async () => {
   const home = await mkdtemp(join(tmpdir(), 'pi-happ-locations-ui-'));
   try {
     const config = join(home, '.config', 'pi-happ');
@@ -26,7 +26,7 @@ test('main-menu latency action never connects and caches results for location se
             return steps.shift();
           }
           if (title === 'Subscriptions') return items[0];
-          if (title.startsWith('TCP latency results')) { views.push(items); return items[0]; }
+          if (title.startsWith('TCP latency results')) { views.push(items); return undefined; }
           if (title.startsWith('Location')) {
             if (items.some(item => item.includes('Check all locations'))) throw new Error('Probe action still in location picker');
             views.push(items); return undefined;

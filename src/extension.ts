@@ -159,33 +159,34 @@ export default function happ(pi: ExtensionAPI) {
                 state.subscriptions.splice(index, 1);
                 await saveState(state);
               }
-            } else if (action === actions.latency) {
-              try {
-                const results = await runOperation(ctx, t('Checking locations (TCP, Esc to cancel)…', 'Проверка локаций (TCP, Esc — отмена)…'), signal =>
-                  checkLocations(subscription.profiles, { signal }));
-                subscription.profiles.forEach((profile, i) => latencies.set(latencyKey(profile), results[i]));
-                while (latencies.size > 10000) latencies.delete(latencies.keys().next().value!);
-                const names = subscription.profiles.map((p, i) => `${i + 1}. ${cleanLabel(p.remarks || t('Unnamed', 'Без названия'))} · ${latencyText(p)}`);
-                await ctx.ui.select(t('TCP latency results · no connection', 'Результаты TCP-пинга · без подключения'), names);
-              } catch (error) {
-                if (!(error instanceof Error && error.name === 'AbortError')) throw error;
-                notifyError(ctx, error);
-              }
             } else {
-              while (true) {
-                const names = subscription.profiles.map((p, i) => `${i + 1}. ${cleanLabel(p.remarks || t('Unnamed', 'Без названия'))} · ${latencyText(p)}`);
-                const location = await ctx.ui.select(t('Location · TCP is not a tunnel test', 'Локация · TCP не проверяет туннель'), names);
-                if (!location) break;
-                const selectedIndex = names.indexOf(location);
-                if (selectedIndex < 0) continue;
-                ctx.ui.notify(t('Starting Xray and checking IP…', 'Запуск Xray и проверка IP…'), 'info');
-                ctx.abort();
-                await runOperation(ctx, t('Connecting VPN (Esc to cancel)…', 'Подключение VPN (Esc — отмена)…'), signal =>
-                  transport.connect(subscription.profiles[selectedIndex], signal));
-                const { ip, latencyMs } = await tunnel.checkIP();
-                ctx.ui.notify(`${t('VPN ready', 'VPN готов')}: ${ipText(ip, latencyMs)}. OpenAI/Anthropic/Codex: VPN (SSE).`, 'info');
-                break;
+              if (action === actions.latency) {
+                try {
+                  const results = await runOperation(ctx, t('Checking locations (TCP, Esc to cancel)…', 'Проверка локаций (TCP, Esc — отмена)…'), signal =>
+                    checkLocations(subscription.profiles, { signal }));
+                  subscription.profiles.forEach((profile, i) => latencies.set(latencyKey(profile), results[i]));
+                  while (latencies.size > 10000) latencies.delete(latencies.keys().next().value!);
+                } catch (error) {
+                  if (!(error instanceof Error && error.name === 'AbortError')) throw error;
+                  notifyError(ctx, error);
+                  continue;
+                }
               }
+              const names = subscription.profiles.map((p, i) => `${i + 1}. ${cleanLabel(p.remarks || t('Unnamed', 'Без названия'))} · ${latencyText(p)}`);
+              const title = action === actions.latency
+                ? t('TCP latency results · select to connect', 'Результаты TCP-пинга · выберите для подключения')
+                : t('Location · TCP is not a tunnel test', 'Локация · TCP не проверяет туннель');
+              const location = await ctx.ui.select(title, names);
+              if (!location) continue;
+              const selectedIndex = names.indexOf(location);
+              if (selectedIndex < 0) continue;
+              ctx.ui.notify(t('Starting Xray and checking IP…', 'Запуск Xray и проверка IP…'), 'info');
+              ctx.abort();
+              await runOperation(ctx, t('Connecting VPN (Esc to cancel)…', 'Подключение VPN (Esc — отмена)…'), signal =>
+                transport.connect(subscription.profiles[selectedIndex], signal));
+              const { ip, latencyMs } = await tunnel.checkIP();
+              ctx.ui.notify(`${t('VPN ready', 'VPN готов')}: ${ipText(ip, latencyMs)}. OpenAI/Anthropic/Codex: VPN (SSE).`, 'info');
+              return;
             }
           }
         }
